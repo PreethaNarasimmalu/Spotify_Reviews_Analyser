@@ -13,8 +13,11 @@
 | UI Wireframe | ✅ Done | UI_WIREFRAME.md |
 | Requirements | ✅ Done | requirements.txt |
 | Env config template | ✅ Done | .env.example |
-| Scrapers | ⏳ Not started | |
-| Pre-filter layer | ⏳ Not started | |
+| Scrapers | ✅ Done | scrapers/app_store.py, play_store.py, reddit_scraper.py, community_scraper.py |
+| Pre-filter layer | ✅ Done | pipeline/prefilter.py — tested and passing |
+| Storage (SQLite) | ✅ Done | pipeline/storage.py |
+| Pipeline runner | ✅ Done | pipeline/runner.py |
+| Config | ✅ Done | config.py |
 | AI analysis pipeline | ⏳ Not started | |
 | RAG layer | ⏳ Not started | |
 | Streamlit UI | ⏳ Not started | |
@@ -84,3 +87,5 @@
 | 2026-06-19 | Decided manual-only trigger, no weekly scheduling |
 | 2026-06-19 | LLM stack locked: Groq + Claude Haiku |
 | 2026-06-19 | UI wireframe finalized with Spotify colors |
+| 2026-06-19 | Phase 1 built and tested — scrapers, pre-filter, storage, runner |
+| 2026-06-19 | Removed gibberish detection (unreliable without dictionary; 3-word + junk ratio sufficient) |
