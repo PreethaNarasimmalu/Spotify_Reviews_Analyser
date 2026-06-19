@@ -11,8 +11,8 @@ An AI-powered opportunity discovery engine that analyzes user feedback at scale 
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     TRIGGER (Weekly or Manual)                  │
-│              GitHub Actions Cron  /  Streamlit UI Button        │
+│                     TRIGGER (Manual Only)                       │
+│                 Streamlit UI — "Run Analysis" Button            │
 └────────────────────────────┬────────────────────────────────────┘
                              │
                              ▼
@@ -25,86 +25,123 @@ An AI-powered opportunity discovery engine that analyzes user feedback at scale 
 │  └──────┬──────┘  └──────┬──────┘  └────┬─────┘  └────┬────┘  │
 │         └────────────────┴──────────────┴──────────────┘       │
 │                             │                                   │
-│                    Normalized Review Schema                      │
-│         {source, text, rating, date, platform, user_id}        │
-│                             │                                   │
-│                      PostgreSQL / SQLite                        │
+│                    Raw Reviews (unfiltered)                     │
 └────────────────────────────┬────────────────────────────────────┘
                              │
                              ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                   PHASE 2: AI ANALYSIS PIPELINE                 │
+│                     PHASE 2: PRE-FILTERING                      │
 │                                                                 │
-│   Input: Raw reviews (batched, ~500 at a time)                  │
+│   Hard Filters (auto-discard):                                  │
+│   • No text — star rating only or empty body                    │
+│   • Less than 3 words                                           │
+│   • Only emoji — entire review is emoji                         │
+│   • Junk/gibberish — >30% non-alphabetic characters             │
+│   • No real words detected                                      │
+│   • Non-English reviews (for now)                               │
+│   • Spam — same review text across multiple users               │
+│   • Near-duplicates — >80% similarity, keep one drop rest       │
+│                                                                 │
+│   Normalization (keep but clean):                               │
+│   • Repeated characters normalized → "plssssss" → "pls"        │
+│                                                                 │
+│   Soft Filters (deprioritize, don't discard):                   │
+│   • Single generic sentence with high rating                    │
+│   • Very generic praise with no specific feedback               │
+│                                                                 │
+│   Expected outcome: ~40-60% of raw reviews dropped             │
+│   Filter log saved separately for auditing                      │
+│                                                                 │
+│   UI shows after run:                                           │
+│   ✅ 2,041 scraped → 🗑️ 1,102 filtered → 📊 939 analysed       │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                PHASE 3: AI ANALYSIS PIPELINE                    │
+│                                                                 │
+│   Input: ~900 clean reviews                                     │
 │                                                                 │
 │   Step 1 — Groq (Llama 3.3 70B) — Bulk Extraction              │
-│     • Topic tagging (discovery, recommendation, repeat, UX)     │
-│     • Frustration signals (what went wrong)                     │
-│     • Behavior intent (what user was trying to do)              │
-│     • User segment signals (casual / power / audiophile)        │
-│     • Sentiment per topic (not just overall)                    │
+│     • Batch size: 20 reviews per call                           │
+│     • ~45 Groq calls total (down from ~100 without filtering)   │
+│     • Extracts per review:                                      │
+│       - Topic tags (discovery, recommendation, repeat, UX)      │
+│       - Frustration signals (what went wrong)                   │
+│       - Behavior intent (what user was trying to do)            │
+│       - User segment signal (casual / power / audiophile)       │
+│       - Per-topic sentiment (not just overall)                  │
 │                                                                 │
 │   Step 2 — Groq — Opportunity Scoring                           │
-│     • Frequency score (how often does this theme appear)        │
-│     • Intensity score (how strongly do users feel it)           │
-│     • Recency score (is it getting worse or better)             │
+│     • 1 call to score and rank all clusters                     │
 │     • Signal strength = frequency × intensity × recency         │
 │                                                                 │
 │   Step 3 — Claude (claude-haiku-4-5) — Insight Synthesis        │
-│     • Cluster themes into opportunity areas                     │
-│     • Generate hypothesis cards per opportunity                 │
-│     • Write weekly digest summary                               │
+│     • 1 call per opportunity cluster (~6 clusters = 6 calls)    │
+│     • Generates hypothesis card per cluster                     │
+│     • 1 final call for full digest narrative                    │
+│                                                                 │
+│   Total LLM calls per run:                                      │
+│   ┌────────────────────────────────────────────────────────┐    │
+│   │ Groq bulk extraction    ~45 calls                      │    │
+│   │ Groq opportunity score   1 call                        │    │
+│   │ Claude cluster synthesis 6 calls                       │    │
+│   │ Claude digest            1 call                        │    │
+│   │ ─────────────────────────────────                      │    │
+│   │ Total per run           ~53 calls                      │    │
+│   │ Per Q&A question        +1 Claude call                 │    │
+│   │ ─────────────────────────────────                      │    │
+│   │ Cost: ~$0.01 total (Claude Haiku)                      │    │
+│   │ Groq: free tier (14,400 req/day — well within limit)   │    │
+│   └────────────────────────────────────────────────────────┘    │
 └────────────────────────────┬────────────────────────────────────┘
                              │
                              ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    PHASE 3: RAG LAYER                           │
+│                    PHASE 4: RAG LAYER                           │
 │                                                                 │
-│   All processed reviews → Embeddings → ChromaDB                │
+│   Clean reviews → Embeddings (sentence-transformers)           │
+│   → Stored in ChromaDB (local vector store)                    │
 │                                                                 │
-│   Enables semantic search over the full corpus:                 │
-│   Query: "users feel trapped in familiar music"                 │
-│   Returns: reviews mentioning echo chambers, repeat loops,      │
-│            same songs, no variety — even with no word overlap   │
+│   On Q&A query:                                                 │
+│   User question → embed → retrieve top-K relevant reviews      │
+│   → feed to Claude Haiku → structured answer with quotes       │
 │                                                                 │
-│   Powers the Q&A interface in the UI                           │
+│   Why RAG from Phase 1 (not later):                            │
+│   It's what makes the system answerable — product managers     │
+│   can ask natural language questions and get evidence-backed   │
+│   answers from real user reviews, not LLM hallucination        │
 └────────────────────────────┬────────────────────────────────────┘
                              │
                              ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    PHASE 4: STREAMLIT UI                        │
-│                                                                 │
-│   ┌──────────────────────────────────────────────────────┐     │
-│   │  Sidebar: Source filter │ Date range │ Segment filter│     │
-│   └──────────────────────────────────────────────────────┘     │
+│                    PHASE 5: STREAMLIT UI                        │
+│                  (Spotify Colors — #1DB954 / #191414)           │
 │                                                                 │
 │   Tab 1 — Run Analysis                                          │
-│     [▶ Run Analysis] button → triggers full pipeline            │
-│     Live progress bar → completion summary                      │
+│   ┌──────────────────────────────────────────────────────┐     │
+│   │  LAST RUN HIGHLIGHTS                                 │     │
+│   │  19 Jun 2026 · 939 reviews · 6 opportunities found  │     │
+│   │  🔴 Echo Chamber (87) · 🟠 Rec Mismatch (71)         │     │
+│   │                          [ View Full Last Run ]      │     │
+│   └──────────────────────────────────────────────────────┘     │
+│   ┌──────────────────────────────────────────────────────┐     │
+│   │  Sources: ☑ App Store ☑ Play Store ☑ Reddit ☑ Comm  │     │
+│   │  Timeline: [ Last 30 days ▾ ] (7d / 30d / 90d / Custom)   │
+│   │                  [ ▶ Run Analysis ]                  │     │
+│   └──────────────────────────────────────────────────────┘     │
 │                                                                 │
 │   Tab 2 — Opportunity Dashboard                                 │
-│     • Top opportunity clusters (bar chart by signal strength)  │
-│     • Trend over time (is the problem growing?)                 │
-│     • Segment breakdown (who feels it most?)                   │
-│     • Hypothesis cards with supporting quote count             │
+│     • Metric cards (total reviews, clusters, top signal)        │
+│     • Opportunity clusters bar chart (signal strength)          │
+│     • Trend over time line chart                                │
+│     • Segment breakdown cards (casual / power / audiophile)    │
+│     • Hypothesis cards per cluster with quotes                  │
 │                                                                 │
 │   Tab 3 — Ask a Question (RAG Q&A)                              │
-│     Pre-built question cards:                                   │
-│     ┌──────────────────────────────────┐                       │
-│     │ Why do users struggle to         │                       │
-│     │ discover new music?              │                       │
-│     └──────────────────────────────────┘                       │
-│     ┌──────────────────────────────────┐                       │
-│     │ What causes repetitive listening?│                       │
-│     └──────────────────────────────────┘                       │
-│     ... (all 6 questions as clickable cards) ...               │
-│     + Custom question input box                                │
-│                                                                 │
-│     Answer format:                                             │
-│     • Structured response grounded in real reviews             │
-│     • Signal strength (% of reviews mentioning this)          │
-│     • Top 3-5 supporting quotes with source + date            │
-│     • Opportunity hypothesis card                              │
+│     • 6 pre-built question cards (click to ask instantly)       │
+│     • Custom question input box                                 │
+│     • Answer: narrative + % signal + top quotes + hypothesis    │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -112,32 +149,37 @@ An AI-powered opportunity discovery engine that analyzes user feedback at scale 
 
 ## Build Phases
 
-### Phase 1 — Scrapers (Week 1)
+### Phase 1 — Scrapers
 - App Store scraper (app-store-scraper)
 - Play Store scraper (google-play-scraper)
 - Reddit scraper (PRAW — r/spotify, r/musicrecommendations, r/spotifyplaylist)
 - Spotify Community scraper (BeautifulSoup)
-- Normalized data storage (SQLite to start)
+- Raw storage in SQLite
 
 **Priority order:** App Store → Play Store → Reddit → Community
 
-### Phase 2 — AI Analysis Pipeline (Week 1-2)
-- Groq integration for bulk extraction
-- Structured JSON output per review (topics, signals, segment, sentiment)
-- Opportunity scoring algorithm
-- Claude integration for synthesis and digest
+### Phase 2 — Pre-Filter Layer
+- Hard filter engine (word count, junk detection, duplicate check)
+- Character normalization (repeated chars)
+- Language detection
+- Filter audit log
 
-### Phase 3 — RAG Layer (Week 2)
-- sentence-transformers for embeddings
-- ChromaDB for vector storage
-- Retrieval function: query → top-K relevant reviews
-- RAG chain: query + retrieved reviews → Claude answer
+### Phase 3 — AI Analysis Pipeline
+- Groq integration — batched extraction (20 reviews/call)
+- Structured JSON output per review
+- Opportunity scoring
+- Claude integration — synthesis + digest
 
-### Phase 4 — Streamlit UI (Week 2-3)
-- Run Analysis tab with manual trigger button
-- Opportunity Dashboard with Plotly charts
-- Q&A interface with pre-built question cards
-- GitHub Actions cron for weekly automated runs
+### Phase 4 — RAG Layer
+- sentence-transformers embeddings (all-MiniLM-L6-v2)
+- ChromaDB vector store
+- Retrieval + answer generation chain
+
+### Phase 5 — Streamlit UI
+- Spotify color theme
+- Tab 1: Run Analysis with last-run highlights + timeline filter
+- Tab 2: Opportunity Dashboard
+- Tab 3: RAG Q&A with pre-built question cards
 
 ---
 
@@ -145,25 +187,31 @@ An AI-powered opportunity discovery engine that analyzes user feedback at scale 
 
 | Layer | Technology | Why |
 |---|---|---|
-| Scrapers | Python (app-store-scraper, google-play-scraper, PRAW) | Purpose-built libraries |
-| Storage | SQLite → PostgreSQL | Simple start, easy upgrade |
+| Scrapers | app-store-scraper, google-play-scraper, PRAW, BeautifulSoup | Purpose-built |
+| Storage | SQLite | Simple, no infra, easy to migrate later |
+| Pre-filter | Python (langdetect, difflib) | Lightweight, no API calls needed |
 | Bulk AI | Groq (Llama 3.3 70B) | Free, fast, handles volume |
-| Synthesis AI | Claude (claude-haiku-4-5) | Better reasoning for summaries |
+| Synthesis AI | Claude (claude-haiku-4-5) | Better reasoning, ~$0.01/run |
 | Vector Store | ChromaDB | Free, local, no infra needed |
 | Embeddings | sentence-transformers (all-MiniLM-L6-v2) | Fast, free, good quality |
-| UI | Streamlit | Fastest path to interactive UI |
-| Charts | Plotly | Interactive, looks good in Streamlit |
-| Scheduling | GitHub Actions (weekly cron) | Already in repo, free |
+| UI | Streamlit | Fast to build, supports interactive components |
+| Charts | Plotly | Interactive charts in Streamlit |
 
 ---
 
-## Key Design Decisions
+## Trigger Model
+**Manual only** — no scheduled/weekly runs. This system is an input for a new product opportunity, not ongoing monitoring. Run it when you need fresh data before research sessions or presentations.
 
-1. **Weekly batch + manual trigger** — No real-time infra needed; GitHub Actions cron for automation, Streamlit button for on-demand runs
-2. **Groq for volume, Claude for quality** — Groq handles thousands of reviews cheaply; Claude writes the final synthesis
-3. **RAG from Phase 1** — Not an afterthought; it's what makes the system answerable by product managers
-4. **SQLite first** — Can migrate to PostgreSQL later without changing application code
-5. **Source priority** — App Store and Play Store first (structured, rated, reliable); Reddit second (rich discussion); Community last (lower volume)
+---
+
+## Pre-Filter Thresholds (Finalized)
+| Rule | Threshold | Rationale |
+|---|---|---|
+| Minimum word count | 3 words | "Same songs always" = 3 words, carries real signal |
+| Repeated characters | Normalize, don't discard | Typos still carry sentiment |
+| Junk character ratio | >30% non-alpha = discard | Emoji-only reviews useless |
+| Near-duplicate | >80% similarity = drop one | Deduplication |
+| Language | English only (for now) | Model accuracy |
 
 ---
 
@@ -172,11 +220,12 @@ An AI-powered opportunity discovery engine that analyzes user feedback at scale 
 ```
 outputs/
   YYYY-MM-DD/
-    raw_reviews.json          ← all scraped reviews this run
+    raw_reviews.json          ← all scraped reviews
+    filter_log.json           ← what was dropped and why
     analyzed_reviews.json     ← reviews with AI-extracted tags
     opportunity_clusters.json ← grouped themes with scores
     hypothesis_cards.json     ← opportunity framing per cluster
-    weekly_digest.md          ← Claude-generated summary
+    digest.md                 ← Claude-generated summary
 ```
 
 ---
