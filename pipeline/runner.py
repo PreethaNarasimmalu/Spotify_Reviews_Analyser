@@ -47,16 +47,6 @@ def run_pipeline(sources: list[str], days: int, progress_callback=None) -> dict:
         except Exception as e:
             update(f"play_store_error:{e}")
 
-    if "reddit" in sources:
-        update("scraping_reddit")
-        try:
-            from scrapers.reddit_scraper import scrape_reddit
-            r = scrape_reddit(days=days)
-            all_raw.extend(r)
-            update(f"reddit_done:{len(r)}")
-        except Exception as e:
-            update(f"reddit_error:{e}")
-
     if "community" in sources:
         update("scraping_community")
         try:
