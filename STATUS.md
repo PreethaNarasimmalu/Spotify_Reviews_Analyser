@@ -19,7 +19,7 @@
 | Pipeline runner | ✅ Done | pipeline/runner.py |
 | Config | ✅ Done | config.py |
 | AI analysis pipeline | ✅ Done | pipeline/extractor.py, scorer.py, synthesizer.py |
-| RAG layer | ⏳ Not started | |
+| RAG layer | ✅ Done | rag/embedder.py, rag/qa_chain.py — 5 tests passing |
 | Streamlit UI | ⏳ Not started | |
 
 ---
@@ -89,5 +89,6 @@
 | 2026-06-19 | UI wireframe finalized with Spotify colors |
 | 2026-06-19 | Phase 1 built and tested — scrapers, pre-filter, storage, runner |
 | 2026-06-19 | Phase 2 built and tested — Groq extractor, opportunity scorer, Claude synthesizer |
+| 2026-06-19 | Phase 3 built and tested — ChromaDB embedder, RAG QA chain wired into pipeline |
 | 2026-06-19 | Deployment target confirmed: Streamlit Community Cloud (free, zero config) |
 | 2026-06-19 | Removed gibberish detection (unreliable without dictionary; 3-word + junk ratio sufficient) |
