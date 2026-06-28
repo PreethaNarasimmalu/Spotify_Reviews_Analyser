@@ -1,11 +1,9 @@
-import anthropic
 import json
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import ANTHROPIC_API_KEY, TOP_CLUSTERS_FOR_SYNTHESIS
-
-client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+from config import TOP_CLUSTERS_FOR_SYNTHESIS
+from pipeline.extractor import get_pool
 
 HYPOTHESIS_PROMPT = """You are a product strategist analyzing Spotify user feedback.
 
@@ -27,7 +25,7 @@ Return a JSON object with:
 Only valid JSON, no explanation.
 """
 
-DIGEST_PROMPT = """You are a senior product researcher at Spotify summarizing weekly user feedback analysis.
+DIGEST_PROMPT = """You are a senior product researcher at Spotify summarizing user feedback analysis.
 
 Here are the top opportunity clusters found from analyzing {total_reviews} user reviews across {sources}:
 
@@ -58,13 +56,13 @@ def generate_hypothesis(cluster: dict) -> dict:
         quotes=quotes_text,
     )
 
-    response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=600,
+    raw = get_pool().call(
+        model="llama-3.3-70b-versatile",
         messages=[{"role": "user", "content": prompt}],
+        temperature=0.2,
+        max_tokens=600,
     )
 
-    raw = response.content[0].text.strip()
     try:
         if raw.startswith("```"):
             raw = raw.split("```")[1]
@@ -89,13 +87,12 @@ def generate_digest(clusters: list[dict], total_reviews: int, sources: list[str]
         clusters_summary=clusters_summary,
     )
 
-    response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=400,
+    return get_pool().call(
+        model="llama-3.3-70b-versatile",
         messages=[{"role": "user", "content": prompt}],
+        temperature=0.2,
+        max_tokens=400,
     )
-
-    return response.content[0].text.strip()
 
 
 def synthesize(clusters: list[dict], total_reviews: int, sources: list[str],
@@ -105,16 +102,16 @@ def synthesize(clusters: list[dict], total_reviews: int, sources: list[str],
 
     for i, cluster in enumerate(top_clusters):
         if progress_callback:
-            progress_callback(f"claude_hypothesis:{i+1}/{len(top_clusters)}")
+            progress_callback(f"groq_hypothesis:{i+1}/{len(top_clusters)}")
         hypothesis = generate_hypothesis(cluster)
         enriched_clusters.append({**cluster, "hypothesis": hypothesis})
 
-    # Append remaining clusters without hypothesis (still shown in dashboard)
+    # Remaining clusters shown in dashboard without hypothesis card
     for cluster in clusters[TOP_CLUSTERS_FOR_SYNTHESIS:]:
         enriched_clusters.append({**cluster, "hypothesis": None})
 
     if progress_callback:
-        progress_callback("claude_digest")
+        progress_callback("groq_digest")
     digest = generate_digest(enriched_clusters, total_reviews, sources)
 
     return enriched_clusters, digest

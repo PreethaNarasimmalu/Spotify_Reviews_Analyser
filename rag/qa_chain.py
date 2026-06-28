@@ -1,11 +1,9 @@
-import anthropic
+import json
 import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import ANTHROPIC_API_KEY
 from rag.embedder import retrieve
-
-client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+from pipeline.extractor import get_pool
 
 QA_PROMPT = """You are a product researcher at Spotify analyzing user feedback to find product opportunities.
 
@@ -29,6 +27,8 @@ Return a JSON object with:
 - "signal_strength_pct": integer 0-100
 - "supporting_quotes": list of up to 4 objects with "quote", "source", "date", "rating"
 - "opportunity_hypothesis": one sentence product opportunity framing
+
+Only valid JSON, no explanation.
 """
 
 PREDEFINED_QUESTIONS = [
@@ -66,15 +66,14 @@ def ask(question: str, top_k: int = 15) -> dict:
         reviews=reviews_text,
     )
 
-    response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=800,
+    raw = get_pool().call(
+        model="llama-3.3-70b-versatile",
         messages=[{"role": "user", "content": prompt}],
+        temperature=0.1,
+        max_tokens=800,
     )
 
-    raw = response.content[0].text.strip()
     try:
-        import json
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):

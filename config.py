@@ -17,8 +17,6 @@ GROQ_API_KEYS = [
 if not GROQ_API_KEYS and os.getenv("GROQ_API_KEY"):
     GROQ_API_KEYS = [os.getenv("GROQ_API_KEY")]
 
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-
 SPOTIFY_APP_ID_IOS = "324684580"
 SPOTIFY_PACKAGE_ANDROID = "com.spotify.music"
 

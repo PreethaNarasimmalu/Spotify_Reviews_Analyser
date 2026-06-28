@@ -161,17 +161,12 @@ def test_full_pipeline_integration():
     mock_groq_pool = MagicMock()
     mock_groq_pool.call.return_value = MOCK_GROQ_RESPONSE
 
-    mock_claude = MagicMock()
-    mock_claude.messages.create.return_value = MagicMock(
-        content=[MagicMock(text=MOCK_CLAUDE_HYPOTHESIS)]
-    )
-
     with patch("scrapers.app_store.scrape_app_store", return_value=mock_app_reviews), \
          patch("scrapers.play_store.scrape_play_store", return_value=mock_play_reviews), \
          patch("scrapers.community_scraper.scrape_community", return_value=[]), \
          patch.object(extractor_module, "get_pool", return_value=mock_groq_pool), \
          patch.object(extractor_module, "_pool", mock_groq_pool), \
-         patch("pipeline.synthesizer.client", mock_claude), \
+         patch("pipeline.synthesizer.get_pool", return_value=mock_groq_pool), \
          patch.object(embedder_module, "_get_collection", return_value=mock_col):
 
         from pipeline.runner import run_pipeline
