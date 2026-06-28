@@ -1,6 +1,5 @@
 streamlit==1.45.1
 google-play-scraper==1.2.7
-app-store-scraper
 requests>=2.27
 beautifulsoup4==4.13.4
 groq==0.25.0
