@@ -7,6 +7,7 @@ from pipeline.storage import init_db, save_reviews, save_run
 from pipeline.extractor import extract_all
 from pipeline.scorer import score_opportunities
 from pipeline.synthesizer import synthesize
+from rag.embedder import index_reviews
 from config import OUTPUTS_DIR, RAW_DIR
 
 
@@ -84,6 +85,11 @@ def run_pipeline(sources: list[str], days: int, progress_callback=None) -> dict:
         sources=sources, progress_callback=update
     )
     update("synthesis_done")
+
+    # ── Phase 3: RAG Indexing ─────────────────────────────────────────
+    update("indexing_rag")
+    indexed = index_reviews(enriched, run_id=run_id)
+    update(f"rag_done:{indexed}")
 
     # ── Save outputs ──────────────────────────────────────────────────
     completed_at = datetime.now().isoformat()
