@@ -8,6 +8,9 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 COMMUNITY_SEARCH_URLS = [
+    # Ideas board — users explicitly request features, high signal
+    "https://community.spotify.com/t5/Ideas/ct-p/newideas",
+    # Search results for discovery-related topics
     "https://community.spotify.com/t5/forums/searchpage/tab/message?q=music+discovery&search_type=thread",
     "https://community.spotify.com/t5/forums/searchpage/tab/message?q=recommendations&search_type=thread",
     "https://community.spotify.com/t5/forums/searchpage/tab/message?q=same+songs&search_type=thread",
