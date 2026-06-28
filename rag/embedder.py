@@ -17,16 +17,28 @@ _collection = None
 def _get_collection():
     global _client, _collection
     if _collection is None:
+        import shutil
         os.makedirs(CHROMA_DIR, exist_ok=True)
-        _client = chromadb.PersistentClient(path=CHROMA_DIR)
         ef = embedding_functions.SentenceTransformerEmbeddingFunction(
             model_name=EMBEDDING_MODEL
         )
-        _collection = _client.get_or_create_collection(
-            name=COLLECTION_NAME,
-            embedding_function=ef,
-            metadata={"hnsw:space": "cosine"},
-        )
+        try:
+            _client = chromadb.PersistentClient(path=CHROMA_DIR)
+            _collection = _client.get_or_create_collection(
+                name=COLLECTION_NAME,
+                embedding_function=ef,
+                metadata={"hnsw:space": "cosine"},
+            )
+        except Exception:
+            # Corrupted or uninitialized chroma dir — wipe and retry once
+            shutil.rmtree(CHROMA_DIR, ignore_errors=True)
+            os.makedirs(CHROMA_DIR, exist_ok=True)
+            _client = chromadb.PersistentClient(path=CHROMA_DIR)
+            _collection = _client.get_or_create_collection(
+                name=COLLECTION_NAME,
+                embedding_function=ef,
+                metadata={"hnsw:space": "cosine"},
+            )
     return _collection
 
 
