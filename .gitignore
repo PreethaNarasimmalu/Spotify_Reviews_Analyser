@@ -6,3 +6,4 @@ data/raw/
 data/processed/
 outputs/
 data/reviews.db
+data/chroma/
