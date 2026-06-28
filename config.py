@@ -13,16 +13,8 @@ def _get_secret(key: str) -> str | None:
         return os.getenv(key)
 
 
-# Groq API keys — rotated automatically on failure
-GROQ_API_KEYS = [
-    k for k in [
-        _get_secret("GROQ_API_KEY_1"),
-        _get_secret("GROQ_API_KEY_2"),
-        _get_secret("GROQ_API_KEY_3"),
-        _get_secret("GROQ_API_KEY_4"),
-        _get_secret("GROQ_API_KEY_5"),
-    ] if k
-]
+# Groq API keys — rotated automatically on failure (supports up to 10)
+GROQ_API_KEYS = [k for k in [_get_secret(f"GROQ_API_KEY_{i}") for i in range(1, 11)] if k]
 # Fallback: single key
 if not GROQ_API_KEYS and _get_secret("GROQ_API_KEY"):
     GROQ_API_KEYS = [_get_secret("GROQ_API_KEY")]
