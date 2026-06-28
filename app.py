@@ -68,7 +68,7 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown(
-        "<div style='color:#B3B3B3; font-size:0.75rem;'>Powered by Groq + Claude + ChromaDB</div>",
+        "<div style='color:#B3B3B3; font-size:0.75rem;'>Powered by Groq + ChromaDB</div>",
         unsafe_allow_html=True,
     )
 
