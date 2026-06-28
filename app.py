@@ -15,8 +15,10 @@ from ui.components import (
     render_segment_cards,
     render_qa_answer,
 )
-from pipeline.storage import get_last_run
+from pipeline.storage import init_db, get_last_run
 from rag.qa_chain import PREDEFINED_QUESTIONS, ask
+
+init_db()
 
 st.set_page_config(
     page_title="Spotify Review Analyser",
