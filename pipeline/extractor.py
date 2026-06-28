@@ -73,7 +73,7 @@ def extract_batch(reviews: list[dict]) -> list[dict]:
     )
 
     raw = get_pool().call(
-        model="llama-3.3-70b-versatile",
+        model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": EXTRACTION_PROMPT.format(reviews=numbered)}],
         temperature=0.1,
         max_tokens=6000,
