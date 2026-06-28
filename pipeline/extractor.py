@@ -69,14 +69,14 @@ Return a JSON array of objects, one per review. No explanation, only valid JSON.
 
 def extract_batch(reviews: list[dict]) -> list[dict]:
     numbered = "\n\n".join(
-        f"[{i}] {r['text'][:400]}" for i, r in enumerate(reviews)
+        f"[{i}] {r['text'][:200]}" for i, r in enumerate(reviews)
     )
 
     raw = get_pool().call(
         model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": EXTRACTION_PROMPT.format(reviews=numbered)}],
         temperature=0.1,
-        max_tokens=6000,
+        max_tokens=3000,
     )
 
     try:
